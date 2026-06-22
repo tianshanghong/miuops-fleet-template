@@ -165,8 +165,8 @@ jobs:
         run: |
           cat <<'ENV' | sudo tee $STACKS_DIR/.env
           BACKUP_S3_BUCKET=test-bucket
-          AWS_ACCESS_KEY_ID=test-key
-          AWS_SECRET_ACCESS_KEY=test-secret
+          BACKUP_AWS_ACCESS_KEY_ID=test-key
+          BACKUP_AWS_SECRET_ACCESS_KEY=test-secret
           ENV
 
       - name: Copy backup stack
@@ -229,7 +229,7 @@ jobs:
 
           sudo rm -f $STACKS_DIR/backup-archive/*
 
-          echo "GPG_PASSPHRASE=ci-test-passphrase-do-not-use" | sudo tee -a $STACKS_DIR/.env > /dev/null
+          echo "BACKUP_GPG_PASSPHRASE=ci-test-passphrase-do-not-use" | sudo tee -a $STACKS_DIR/.env > /dev/null
 
           docker compose \
             -f $STACKS_DIR/backup/docker-compose.yml \
