@@ -114,6 +114,27 @@ networks:
 - `egress` — plain bridge network for containers needing outbound internet access
 - No `ports:` except Traefik — all other ingress goes through Traefik labels
 
+### Domains & TLS
+
+Route a service by giving it a Traefik `Host(...)` rule (above) and pointing that
+hostname at this server's tunnel with `miuops add-domain <host> <domain>` (in the
+metal repo), which creates `<domain>` + `*.<domain>` CNAMEs.
+
+**Cloudflare free Universal SSL** covers the zone apex and a **one-level** wildcard
+(`*.example.com`) — so `example.com`, `app.example.com`, and `api.example.com` all get
+HTTPS for free.
+
+It does **not** cover a **second-level** wildcard (`*.dev.example.com`). Nesting hosts
+under a subdomain (e.g. `api.dev.example.com`) needs Cloudflare **Advanced Certificate
+Manager** (paid).
+
+**Running a separate environment (dev/staging) on another server, on free certs:** use
+**first-level** subdomains and point each at the right server with its own `add-domain`
+— e.g. `dev.example.com` + `api-dev.example.com` on the dev box, `example.com` +
+`api.example.com` on prod. All are first-level, so Universal SSL covers them. (An exact
+subdomain record overrides the apex's `*.example.com`, so it can live on a different
+server.)
+
 ### Private Registry Authentication
 
 To deploy images from private registries (GHCR, Docker Hub, self-hosted), add credentials to `/opt/stacks/.env` on the server using this pattern:
