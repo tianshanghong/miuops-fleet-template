@@ -86,6 +86,7 @@ Every service must declare explicit `networks:`. No stack binds host ports — w
 services:
   myapp:
     image: myapp:1.0
+    cap_drop: [ALL]
     labels:
       - traefik.enable=true
       - traefik.http.routers.myapp.rule=Host(`app.example.com`)
@@ -96,6 +97,7 @@ services:
       - internal
   db:
     image: postgres:17
+    cap_drop: [ALL]
     volumes:
       - db_data:/var/lib/postgresql/data
     networks:
@@ -189,6 +191,7 @@ Example compose file using the `postgres-walg` image:
 services:
   db:
     image: ghcr.io/tianshanghong/postgres-walg:17
+    cap_drop: [ALL]
     environment:
       POSTGRES_DB: myapp
       POSTGRES_USER: myapp

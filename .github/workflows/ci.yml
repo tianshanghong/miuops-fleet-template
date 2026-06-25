@@ -17,7 +17,7 @@ jobs:
         # bridge (docker0), missing cap_drop:[ALL], dangerous cap_add, sandbox-weakening
         # security_opt, sensitive bind-mounts, devices, and warns on un-pinned images.
         run: |
-          python3 -m pip install --quiet pyyaml
+          python3 -m pip install --break-system-packages --quiet pyyaml
           curl -fsSL -o "$RUNNER_TEMP/stack_policy_check.py" \
             https://raw.githubusercontent.com/tianshanghong/miuops/main/tests/stack_policy_check.py
           shopt -s nullglob
@@ -33,33 +33,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create two stacks on separate per-stack bridges
+      - name: Per-stack network isolation (with a positive control)
         run: |
-          docker network create alpha_internal
-          docker network create beta_internal
+          docker network create alpha_net
+          docker network create beta_net
+          docker run -d --name srv_alpha --network alpha_net traefik/whoami   # listens on :80
+          sleep 2
+          # traefik/whoami is built FROM scratch (no shell, no wget), so the probe must run from a
+          # separate throwaway alpine (busybox provides wget) — never `docker exec` into whoami.
+          probe() { docker run --rm --network "$1" alpine wget -T3 -qO- http://srv_alpha 2>/dev/null; }
 
-          docker run -d --name alpha --network alpha_internal traefik/whoami
-          docker run -d --name beta --network beta_internal traefik/whoami
-
-      - name: Verify lateral movement between stacks is blocked
-        run: |
-          sleep 3
-          # alpha must NOT reach beta — they sit on separate per-stack bridges.
-          if docker exec alpha wget -q -O- --timeout=3 http://beta:80 2>/dev/null; then
-            echo "FAIL: alpha can reach beta — lateral movement NOT blocked"
-            exit 1
+          # NEGATIVE: a container on a different per-stack network must NOT reach srv_alpha.
+          if [ -n "$(probe beta_net || true)" ]; then
+            echo "FAIL: cross-network reachable — per-stack isolation is broken"; exit 1
           fi
-          echo "alpha cannot reach beta — lateral movement blocked"
+          echo "OK: cross-network blocked (per-stack isolation holds)"
 
-          # beta must NOT reach alpha either.
-          if docker exec beta wget -q -O- --timeout=3 http://alpha:80 2>/dev/null; then
-            echo "FAIL: beta can reach alpha — lateral movement NOT blocked"
-            exit 1
+          # POSITIVE CONTROL: a container on the SAME network MUST reach srv_alpha. This proves the
+          # probe actually detects reachability, so the negative check above can genuinely fail.
+          if [ -z "$(probe alpha_net || true)" ]; then
+            echo "FAIL: same-network unreachable — the probe is broken (negative check would be vacuous)"; exit 1
           fi
-          echo "beta cannot reach alpha — lateral movement blocked"
+          echo "OK: same-network reachable (the probe works)"
 
       - name: Cleanup
         if: always()
         run: |
-          docker rm -f alpha beta 2>/dev/null || true
-          docker network rm alpha_internal beta_internal 2>/dev/null || true
+          docker rm -f srv_alpha 2>/dev/null || true
+          docker network rm alpha_net beta_net 2>/dev/null || true
